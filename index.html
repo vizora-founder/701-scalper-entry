@@ -1,13 +1,383 @@
 <!DOCTYPE html>
+
 <html lang="uz">
+
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<meta charset="UTF-8">
+
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
 <title>701 SCALPER ENTRY</title>
+
+<style>
+
+*{box-sizing:border-box}
+
+body{margin:0;background:#10151f;color:#e7eaf0;font:16px Arial,sans-serif}
+
+main{max-width:850px;margin:auto;padding:22px}
+
+h1{color:#e4c77d;font-size:30px}
+
+h2{font-size:21px}
+
+p,small{color:#aeb7c7;line-height:1.6}
+
+.card{background:#202633;border-radius:16px;padding:20px;margin:18px 0}
+
+input{background:#111824;color:white;border:1px solid #59657b;border-radius:9px;padding:12px;width:140px}
+
+button{background:#e4c77d;color:#17202c;border:0;border-radius:10px;padding:13px 18px;font-weight:bold;margin:8px 6px 8px 0;cursor:pointer}
+
+button:active{opacity:.7}
+
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+.stat{background:#151c29;border-radius:10px;padding:13px}
+
+.stat strong{display:block;color:#e4c77d;margin-top:8px}
+
+canvas{width:100%;background:#111824;border-radius:10px}
+
+table{width:100%;border-collapse:collapse;font-size:13px}
+
+th,td{padding:9px;border-bottom:1px solid #394253;text-align:left}
+
+.scroll{overflow-x:auto}
+
+#log{white-space:pre-wrap;font-size:13px;color:#b9c4d4;max-height:200px;overflow:auto}
+
+</style>
+
 </head>
-<body style="background:#10151f;color:#e5c57a;text-align:center;padding:30px;font-family:Arial">
+
+<body>
+
+<main>
+
 <h1>701 SCALPER ENTRY</h1>
-<p>XAUUSD Strategy Simulator</p>
-<button onclick="document.getElementById('status').innerText='Tizim ishlayapti!'">TEST BOSHLASH</button>
-<h2 id="status">Tayyor</h2>
+
+<p>XAUUSD • Sweep → MSS → Fibonacci → Retest</p>
+
+<div class="card">
+
+<strong>Faqat sun'iy narxlardagi virtual sinov.</strong>
+
+<p>Real XAUUSD, Exness yoki MT5 bilan ulanmagan. Natijalar haqiqiy savdo daromadini bashorat qilmaydi.</p>
+
+<label>Virtual balans ($)</label><br>
+
+<input id="balance" type="number" value="10000" min="100">
+
+<p>Shamlar soni</p>
+
+<input id="count" type="number" value="1000" min="100" max="5000">
+
+<br><br>
+
+<button id="start">Simulyatsiyani boshlash</button>
+
+<button id="reset">Tozalash</button>
+
+<p id="status">Holat: Tayyor</p>
+
+</div>
+
+<div class="card">
+
+<h2>Natijalar</h2>
+
+<div class="stats">
+
+<div class="stat">Boshlang'ich balans<strong id="initial">—</strong></div>
+
+<div class="stat">Yakuniy balans<strong id="final">—</strong></div>
+
+<div class="stat">Savdolar<strong id="trades">0</strong></div>
+
+<div class="stat">Win rate<strong id="win">—</strong></div>
+
+<div class="stat">Sof natija<strong id="profit">—</strong></div>
+
+<div class="stat">Maksimal pasayish<strong id="drawdown">—</strong></div>
+
+</div>
+
+</div>
+
+<div class="card">
+
+<h2>Sun'iy narx grafigi</h2>
+
+<canvas id="chart" width="700" height="300"></canvas>
+
+</div>
+
+<div class="card">
+
+<h2>Virtual savdolar</h2>
+
+<div class="scroll">
+
+<table>
+
+<thead><tr><th>#</th><th>Tur</th><th>Entry</th><th>SL</th><th>TP</th><th>Natija</th></tr></thead>
+
+<tbody id="rows"></tbody>
+
+</table>
+
+</div>
+
+</div>
+
+<div class="card">
+
+<h2>Tekshiruv jurnali</h2>
+
+<div id="log">Hali sinov o'tkazilmadi.</div>
+
+</div>
+
+</main>
+
+<script>
+
+const $=id=>document.getElementById(id);
+
+const fmt=n=>Number(n).toFixed(2);
+
+let candles=[];
+
+function generate(n){
+
+ let price=4000,arr=[];
+
+ for(let i=0;i<n;i++){
+
+  let open=price;
+
+  let close=open+(Math.random()-.5)*8;
+
+  let high=Math.max(open,close)+Math.random()*3;
+
+  let low=Math.min(open,close)-Math.random()*3;
+
+  arr.push({open,high,low,close});
+
+  price=close;
+
+ }
+
+ return arr;
+
+}
+
+function draw(arr){
+
+ const c=$("chart"),ctx=c.getContext("2d");
+
+ const w=c.width,h=c.height;
+
+ ctx.clearRect(0,0,w,h);
+
+ if(!arr.length)return;
+
+ const data=arr.slice(-90);
+
+ const hi=Math.max(...data.map(x=>x.high));
+
+ const lo=Math.min(...data.map(x=>x.low));
+
+ const y=v=>20+(hi-v)/(hi-lo||1)*(h-40);
+
+ const step=w/data.length;
+
+ data.forEach((x,i)=>{
+
+  const px=i*step+step/2;
+
+  ctx.strokeStyle=x.close>=x.open?"#35c69a":"#ed6978";
+
+  ctx.fillStyle=ctx.strokeStyle;
+
+  ctx.beginPath();
+
+  ctx.moveTo(px,y(x.high));
+
+  ctx.lineTo(px,y(x.low));
+
+  ctx.stroke();
+
+  ctx.fillRect(px-step*.3,Math.min(y(x.open),y(x.close)),Math.max(2,step*.6),Math.max(1,Math.abs(y(x.open)-y(x.close))));
+
+ });
+
+}
+
+function simulate(){
+
+ const n=Math.min(5000,Math.max(100,Number($("count").value)||1000));
+
+ const initial=Number($("balance").value);
+
+ if(!Number.isFinite(initial)||initial<100){
+
+  $("status").textContent="Balans kamida $100 bo'lishi kerak.";
+
+  return;
+
+ }
+
+ candles=generate(n);
+
+ let balance=initial,peak=initial,maxDD=0,wins=0;
+
+ let records=[],logs=[],busyUntil=-1;
+
+ for(let i=12;i<n-12;i++){
+
+  if(i<=busyUntil)continue;
+
+  const previous=candles.slice(i-10,i);
+
+  const max=Math.max(...previous.map(x=>x.high));
+
+  const min=Math.min(...previous.map(x=>x.low));
+
+  const sweep=candles[i];
+
+  let dir=0;
+
+  if(sweep.low<min&&sweep.close>min)dir=1;
+
+  else if(sweep.high>max&&sweep.close<max)dir=-1;
+
+  if(!dir)continue;
+
+  let mss=-1;
+
+  for(let j=i+1;j<=Math.min(i+5,n-1);j++){
+
+   if(dir===1&&candles[j].close>candles[i-1].high){mss=j;break}
+
+   if(dir===-1&&candles[j].close<candles[i-1].low){mss=j;break}
+
+  }
+
+  if(mss<0)continue;
+
+  const a=dir===1?sweep.low:sweep.high;
+
+  const b=dir===1?Math.max(...candles.slice(i,mss+1).map(x=>x.high)):Math.min(...candles.slice(i,mss+1).map(x=>x.low));
+
+  const entry=b-dir*Math.abs(b-a)*.618;
+
+  const sl=a-dir*.5;
+
+  const risk=Math.abs(entry-sl);
+
+  if(risk<.1)continue;
+
+  const tp=entry+dir*risk*2;
+
+  let entered=-1;
+
+  for(let j=mss+1;j<=Math.min(mss+8,n-1);j++){
+
+   if(candles[j].low<=entry&&candles[j].high>=entry){entered=j;break}
+
+  }
+
+  if(entered<0)continue;
+
+  let outcome=null,exit=entered;
+
+  for(let j=entered+1;j<Math.min(n,entered+31);j++){
+
+   const x=candles[j];
+
+   const hitSL=dir===1?x.low<=sl:x.high>=sl;
+
+   const hitTP=dir===1?x.high>=tp:x.low<=tp;
+
+   if(hitSL){outcome=-1;exit=j;break}
+
+   if(hitTP){outcome=2;exit=j;break}
+
+   exit=j;
+
+  }
+
+  if(outcome===null){
+
+   outcome=dir*(candles[exit].close-entry)/risk;
+
+  }
+
+  const pnl=balance*.005*outcome;
+
+  balance+=pnl;
+
+  if(outcome>0)wins++;
+
+  peak=Math.max(peak,balance);
+
+  maxDD=Math.max(maxDD,(peak-balance)/peak*100);
+
+  records.push({dir,entry,sl,tp,pnl});
+
+  logs.push("Sham "+i+": "+(dir===1?"BUY":"SELL")+" | R="+fmt(outcome));
+
+  busyUntil=exit;
+
+ }
+
+ $("initial").textContent="$"+fmt(initial);
+
+ $("final").textContent="$"+fmt(balance);
+
+ $("trades").textContent=records.length;
+
+ $("win").textContent=records.length?fmt(wins/records.length*100)+"%":"—";
+
+ $("profit").textContent="$"+fmt(balance-initial);
+
+ $("drawdown").textContent=fmt(maxDD)+"%";
+
+ $("rows").innerHTML=records.map((r,i)=>`<tr><td>${i+1}</td><td>${r.dir===1?"BUY":"SELL"}</td><td>${fmt(r.entry)}</td><td>${fmt(r.sl)}</td><td>${fmt(r.tp)}</td><td>${fmt(r.pnl)}</td></tr>`).join("");
+
+ $("log").textContent=logs.join("\n")||"Signal topilmadi.";
+
+ $("status").textContent="Holat: Sinov yakunlandi";
+
+ draw(candles);
+
+}
+
+$("start").addEventListener("click",simulate);
+
+$("reset").addEventListener("click",()=>{
+
+ candles=[];
+
+ ["initial","final","win","profit","drawdown"].forEach(id=>$(id).textContent="—");
+
+ $("trades").textContent="0";
+
+ $("rows").innerHTML="";
+
+ $("log").textContent="Hali sinov o'tkazilmadi.";
+
+ $("status").textContent="Holat: Tayyor";
+
+ const c=$("chart");c.getContext("2d").clearRect(0,0,c.width,c.height);
+
+});
+
+</script>
+
 </body>
+
 </html>
